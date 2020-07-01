@@ -31,5 +31,6 @@ Gem::Specification.new do |spec|
   spec.bindir        = "exe"
   spec.require_paths = ["lib"]
 
+  gem.required_ruby_version = '2.5.0'
   spec.add_dependency "activesupport", "~> 6.0.3"
 end
