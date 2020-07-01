@@ -1,6 +1,11 @@
+# frozen_string_literal: true
+
 require "objectified/version"
 
-# frozen_string_literal: true
+require "active_support"
+require "active_support/rails"
+require "active_support/core_ext/string/inflections"
+require "active_support/lazy_load_hooks"
 
 # include this module to have resource based, meta programming variables.
 module Objectified
@@ -21,50 +26,127 @@ module Objectified
   module ClassMethods
     attr_accessor :object_type_string
 
+    #
+    # The entry point of the api is the :object_type method.
+    #
+    #
+    # Note:
+    #    Do not use for classes with the prefix 'Application'.
+    #
+    # Args:
+    #    object_type_string: (String)
+    #
+    # Example:
+    #    class SomeController
+    #      object_type :controller
+    #    end
+    #
+    #    SomeController.resource_klass_string
+    #      => 'Some'
+    #
+
     def object_type(object_type_string)
       @object_type_string = object_type_string
     end
 
-    def object_klass_string
+
+    #
+    # Returns the 'object_type' but capitalized and stringified
+    #
+    # Example:
+    #    SomeController.object_type_klass_string
+    #      => 'Controller'
+    #
+
+    def object_type_klass_string
       @object_type_string&.to_s&.camelcase
     end
 
-    def records_klass_string
-      unless object_klass_string
+
+    #
+    # Returns the pluralized resource name
+    #
+    # Example:
+    #    SomeController.resources_klass_string
+    #      => 'Somes'
+    #
+
+    def resources_klass_string
+      unless object_type_klass_string
         raise 'No Object Type Defined. please override object_type in your class => e.g. object_type :controller'
       end
 
-      to_s.gsub(object_klass_string, '').singularize
+      to_s.gsub(object_type_klass_string, '').pluralize
     end
 
-    def abstract_klass_string
-      unless object_klass_string
-        raise 'No Object Type Defined. please override object_type in your class => e.g. object_type :controller'
-      end
 
-      to_s.gsub(object_klass_string, '')
+    #
+    # Returns the singularized resource name
+    #
+    # Example:
+    #    SomeController.resource_klass_string
+    #      => 'Some'
+    #
+
+    def resources_klass_string
+      resources_klass_string.singularize
     end
+
+
+    #
+    # Returns the constantized class name of the resource
+    #
+    # Example:
+    #    SomeController.records_klass
+    #      => 'Some'
+    #
 
     def records_klass
-      return if records_klass_string == 'Application'
+      return if resource_klass_string == 'Application'
 
-      records_klass_string&.constantize
+      resource_klass_string&.constantize
     rescue NameError
-      records_klass_string
+      resource_klass_string
     end
 
+
+    #
+    # Returns the name of a the **collection variable** for the resource class, with the option of stripping it's namespaces.
+    #
+    # Example:
+    #    SomeNamespace::SomeController.records_instance_variable_name
+    #      => 'some_namespace_somes'
+    #
+    # Example:
+    #    SomeNamespace::SomeController.records_instance_variable_name(namespace: true)
+    #      => 'somes'
+    #
+
     def records_instance_variable_name(namespace: false)
-      return if records_klass_string == 'Application'
+      return if resource_klass_string == 'Application'
 
       if namespace
-        records_klass.to_s.underscore.downcase.pluralize
+        records_klass.to_s.underscore.downcase.pluralize.gsub('/', '_')
       else
         records_klass.to_s.underscore.downcase.pluralize.split('/').last
       end
     end
 
+
+    #
+    # Returns the name of a the **member variable** for the resource class, with the option of stripping it's namespaces.
+    #
+    # Example:
+    #    SomeNamespace::SomeController.record_instance_variable_name
+    #      => 'some_namespace_some'
+    #
+    # Example:
+    #    SomeNamespace::SomeController.record_instance_variable_name(namespace: true)
+    #      => 'some'
+    #
+
     def record_instance_variable_name(namespace: false)
-      return if records_klass_string == 'Application'
+      return if resource_klass_string == 'Application'
 
       if namespace
         records_klass.to_s.underscore.downcase
@@ -73,11 +155,27 @@ module Objectified
       end
     end
 
+
+    #
+    # Mixin to extract class names on demand.
+    #
+    # Example:
+    #    SomeNamespace::SomeController.record_instance_variable_name
+    #      => 'some_namespace_some'
+    #
+    # Example:
+    #    SomeNamespace::SomeController.record_instance_variable_name(namespace: true)
+    #      => 'some'
+    #
     def object_klass_for(object_type)
-      str = "#{records_klass_string.pluralize}#{object_type.to_s.camelize}"
+      str = "#{resource_klass_string.pluralize}#{object_type.to_s.camelize}"
       str.constantize
     end
   end
+
+  #
+  # Instance Extensions of Class Methods
+  #
 
   def records_instance_variable_name(namespace: false)
     self.class.records_instance_variable_name(namespace: namespace)
@@ -91,16 +189,16 @@ module Objectified
     self.class.records_klass
   end
 
-  def records_klass_string
-    self.class.records_klass_string
+  def resource_klass_string
+    self.class.resource_klass_string
   end
 
   def object_klass_for(object_type)
     self.class.object_klass_for(object_type)
   end
 
-  def abstract_klass_string
-    self.class.abstract_klass_string
+  def resources_klass_string
+    self.class.resources_klass_string
   end
 end
 
